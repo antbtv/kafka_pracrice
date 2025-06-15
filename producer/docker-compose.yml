@@ -4,6 +4,10 @@ networks:
   kafka-net:
     name: kafka-net
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16
 
 services:
   zookeeper:
@@ -46,3 +50,45 @@ services:
       KAFKA_BROKERCONNECT: "kafka:29092"
     depends_on:
       - "kafka"
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: food-order-producer
+    restart: "no"
+    networks:
+      - kafka-net
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - kafka
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  consumer:
+    build:
+      context: ../consumer
+      dockerfile: Dockerfile
+    container_name: food-order-consumer
+    restart: "no"
+    networks:
+      - kafka-net
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_CONSUMER_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - kafka
+      - producer
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
